@@ -5,27 +5,20 @@ from openai import OpenAI
 import pickle
 import threading
 import time
+import re
 
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
-modes = {'gotf2': set(), 'admins': {'stratofortress_b52'}, 'ignore': {'buvav'}, 'separ': set()}
+modes = {}
+
 
 try:
     with open("data.pkl", "rb") as f:
-        modes = pickle.load(f)
-
-    if 'gotf2' not in modes:
-        modes['gotf2'] = set()
-    if 'admins' not in modes:
-        modes['admins'] = {'stratofortress_b52'}
-    if 'ignore' not in modes:
-        modes['ignore'] = {'buvav'}
-    if 'separ' not in modes:
-        modes['separ'] = set()
-
+        modes, modes_fmt = pickle.load(f)
 except Exception as e:
     print(e)
+
 
 with open("openai.txt", "r") as f:
     client = OpenAI(api_key=f.read())
@@ -34,88 +27,6 @@ with open("openai.txt", "r") as f:
 @bot.event
 async def on_ready():
     print('We have logged in as {0.user}'.format(bot))
-
-
-@bot.command()
-async def gotf2(ctx):
-    if ctx.message.author.name not in modes['admins']:
-        await ctx.send('ю аре нот едмін, пліс сак пінес оф адмін ту юз зіс комманд')
-        return
-    if not ctx.message.mentions:
-        await ctx.send('Usage: !gotf2 @username <on/off>')
-        return
-
-    mentioned_user = ctx.message.mentions[0]
-    on_off = ctx.message.content.split(' ')[-1]
-
-    if mentioned_user.name == "GOTF2":
-        await ctx.send('ті лох')
-        return
-
-    if on_off == 'on':
-        modes['gotf2'].add(mentioned_user.name)
-        await ctx.send(f'GoTF2 activated for {mentioned_user.name}')
-    elif on_off == 'off':
-        if mentioned_user.name in modes['gotf2']:
-            modes['gotf2'].remove(mentioned_user.name)
-        await ctx.send(f'GoTF2 deactivated for {mentioned_user.name}')
-    else:
-        await ctx.send('Usage: !gotf2 @username <on/off>')
-
-
-@bot.command()
-async def admin(ctx):
-    if ctx.message.author.name not in modes['admins']:
-        await ctx.send('ю аре нот едмін, пліс сак пінес оф адмін ту юз зіс комманд')
-        return
-    if not ctx.message.mentions:
-        await ctx.send('Usage: !admin @username <add/remove>')
-        return
-
-    mentioned_user = ctx.message.mentions[0]
-    on_off = ctx.message.content.split(' ')[-1]
-
-    if on_off == 'add':
-        modes['admins'].add(mentioned_user.name)
-        await ctx.send(f'Admin added: {mentioned_user.name}')
-    elif on_off == 'remove':
-        if mentioned_user.name in admins:
-            modes['admins'].remove(mentioned_user.name)
-        await ctx.send(f'Admin removed: {mentioned_user.name}')
-    else:
-        await ctx.send('Usage: !admin @username <add/remove>')
-
-
-@bot.command()
-async def admins(ctx):
-    await ctx.send(', '.join(modes['admins']))
-
-
-@bot.command()
-async def separ(ctx):
-    if ctx.message.author.name not in modes['admins']:
-        await ctx.send('ю аре нот едмін, пліс сак пінес оф адмін ту юз зіс комманд')
-        return
-    if not ctx.message.mentions:
-        await ctx.send('Usage: !separ @username <on/off>')
-        return
-
-    mentioned_user = ctx.message.mentions[0]
-    on_off = ctx.message.content.split(' ')[-1]
-
-    if mentioned_user.name == "GOTF2":
-        await ctx.send('ті лох')
-        return
-
-    if on_off == 'on':
-        modes['separ'].add(mentioned_user.name)
-        await ctx.send(f'Separ activated for {mentioned_user.name}')
-    elif on_off == 'off':
-        if mentioned_user.name in modes['separ']:
-            modes['separ'].remove(mentioned_user.name)
-        await ctx.send(f'Separ deactivated for {mentioned_user.name}')
-    else:
-        await ctx.send('Usage: !separ @username <on/off>')
 
 
 @bot.command()
@@ -147,11 +58,30 @@ async def chat(ctx):
         messages=[
             {"role": "system",
              "content": "Ти діскорд-бот."},
-            {"role": "user", "content": f"Користувач {ctx.message.author.name} написав: {ctx.message.content}"}
+            {"role": "user", "content": ctx.message.content}
         ]
     )
 
     await ctx.send(completion.choices[0].message.content)
+
+
+@bot.command()
+async def mode(ctx):
+    match = re.match(r"!mode ([\w_{}]+) (on|off) (<@\d+>)", ctx.message.content)
+    if match:
+        fmt, _mode, _ = match.groups()
+        fmt = fmt.replace('_', ' ')
+        user = ctx.message.mentions[0].name
+
+        if fmt not in modes:
+            modes[fmt] = set()
+
+        if _mode == "on":
+            modes[fmt].add(user)
+        elif _mode == "off":
+            modes[fmt].discard(user)
+    else:
+        await ctx.send("Usage: !mode <fmt> <on|off> <@user>")
 
 
 @bot.event
@@ -159,14 +89,9 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
-    if message.author.name in modes['gotf2']:
-        await message.channel.send(f'{message.author.mention} gotf2')
-
-    if message.author.name in modes['separ']:
-        await message.channel.send(f'ті сепар {message.author.mention}')
-
-    if message.author.name in modes['ignore']:
-        return
+    for fmt, users in modes.items():
+        if message.author.name in users:
+            await message.channel.send(fmt.replace('{}', message.author.mention))
 
     await bot.process_commands(message)
 
@@ -175,7 +100,7 @@ def save_modes():
     while True:
         time.sleep(60)
         with open("data.pkl", "wb") as _f:
-            pickle.dump(modes, _f)
+            pickle.dump([modes, modes_fmt], _f)
 
 
 threading.Thread(target=save_modes).start()
