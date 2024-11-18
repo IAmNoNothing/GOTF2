@@ -5,6 +5,7 @@ from openai import OpenAI
 import pickle
 import threading
 import time
+from evaluation import Parser
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -37,11 +38,15 @@ async def ping(ctx):
 async def calc(ctx):
     try:
         expr = ctx.message.content[len('!calc '):]
-        if 'exec' in expr:
-            await ctx.send('`exec` is not allowed')
-            return
         loop = asyncio.get_running_loop()
-        result = await asyncio.wait_for(loop.run_in_executor(None, eval, expr), timeout=1.0)
+
+        def evaluate(_expr):
+            try:
+                return Parser.parse(_expr).simplify().left
+            except Exception as e:
+                return e
+
+        result = await asyncio.wait_for(loop.run_in_executor(None, evaluate, expr), timeout=1.0)
 
         await ctx.send(str(result))
     except asyncio.TimeoutError:
@@ -140,4 +145,3 @@ with open("discord.txt") as f:
     token = f.read()
 
 bot.run(token)
-# 123
