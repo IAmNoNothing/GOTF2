@@ -14,6 +14,18 @@ modes = {}
 ignore = {}
 admins_list = {'stratofortress_b52'}
 
+qwerty = 'qwertyuiop[]asdfghjkl;\'zxcvbnm,.'
+йцукен = 'йцукенгшщзхїфівапролджєячсмитьбю'
+
+
+def translate(string, from_lang, to_lang):
+    table = dict(zip(from_lang, to_lang))
+    new = ''
+    for c in string:
+        new += table.get(c, c)
+    return new
+
+
 try:
     with open("data.pkl", "rb") as f:
         admins_list, modes = pickle.load(f)
@@ -130,6 +142,15 @@ async def admin(ctx, action: str, member: discord.Member):
             await ctx.send(f"{member.name} was removed from the admins.")
         else:
             await ctx.send(f"{member.name} is not an admin.")
+
+
+@bot.command()
+async def elf(ctx, string: str):
+    if string[0] == '!':
+        await ctx.send(translate(string[1:], qwerty, йцукен))
+    else:
+        await ctx.send(translate(string, йцукен, qwerty))
+
 
 
 def save_modes():
